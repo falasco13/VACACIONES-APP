@@ -91,7 +91,7 @@ export default function App() {
   const [ready,setReady]   = useState(false);
 
   // ── Sync state ────────────────────────────────────────────────────────────
-  const [scriptUrl, setScriptUrl] = useState(()=>localStorage.getItem("vcm_scriptUrl")||"");
+  const [scriptUrl, setScriptUrl] = useState("https://script.google.com/macros/s/https://script.google.com/macros/s/AKfycbwiiMBmfDywaeFRKYwJSWjftGLueMDX6bsReSRxqE5qw4JRdK-rVttOMQP0zEdO0WjYXg/exec");
   const [syncState, setSyncState] = useState("idle");   // idle|pending|syncing|ok|error
   const [lastSync,  setLastSync]  = useState(()=>localStorage.getItem("vcm_lastSync")||"");
   const syncTimer = useRef(null);
