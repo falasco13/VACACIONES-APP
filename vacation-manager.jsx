@@ -28,15 +28,15 @@ function buildPayload(emps, vacs, confs) {
   const now = new Date().toLocaleString("es-AR");
 
   const resumen = [
-    ["VACACIONES MANAGER — Resumen automático"],
-    [""],
-    ["Última actualización", now],
-    ["Total empleados",      emps.length],
-    ["Total solicitudes",    vacs.length],
-    ["Aprobadas",            vacs.filter(v=>v.status==="aprobado").length],
-    ["Pendientes",           vacs.filter(v=>v.status==="pendiente").length],
-    ["Rechazadas",           vacs.filter(v=>v.status==="rechazado").length],
-    ["Reglas de conflicto",  confs.length],
+    ["VACACIONES MANAGER — Resumen automático", ""],
+    ["", ""],
+    ["Última actualización", String(now)],
+    ["Total empleados",      String(emps.length)],
+    ["Total solicitudes",    String(vacs.length)],
+    ["Aprobadas",            String(vacs.filter(v=>v.status==="aprobado").length)],
+    ["Pendientes",           String(vacs.filter(v=>v.status==="pendiente").length)],
+    ["Rechazadas",           String(vacs.filter(v=>v.status==="rechazado").length)],
+    ["Reglas de conflicto",  String(confs.length)]
   ];
 
   const vacaciones = [
