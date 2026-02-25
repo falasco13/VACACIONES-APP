@@ -360,12 +360,12 @@ function RequestsView({emps,vacs,setVacs}){
 
 // ─── Employees ────────────────────────────────────────────────────────────────
 function EmployeesView({emps,setEmps,vacs}){
-  const [form,setF]=useState({name:"",maxDays:15,color:ECOLS[0]});
+  const [form,setF]=useState({name:"",maxDays:30,color:ECOLS[0]});
   const [err,setErr]=useState("");
   const add=()=>{
     if(!form.name.trim()){setErr("El nombre es obligatorio.");return;}
     setEmps(e=>[...e,{id:uid(),name:form.name.trim(),maxDays:Number(form.maxDays),color:form.color}]);
-    setF({name:"",maxDays:15,color:ECOLS[emps.length%ECOLS.length]});setErr("");
+    setF({name:"",maxDays:30,color:ECOLS[emps.length%ECOLS.length]});setErr("");
   };
   return (
     <div style={{display:"grid",gridTemplateColumns:"300px 1fr",gap:24,alignItems:"start"}}>
