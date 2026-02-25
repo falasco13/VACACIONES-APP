@@ -89,6 +89,7 @@ export default function App() {
   const [syncState, setSyncState] = useState("idle");
   const [lastSync,  setLastSync]  = useState("");
   const syncTimer = useRef(null);
+const isFirstRender = useRef(true);	
 
   const urlRef   = useRef(scriptUrl);
   const empsRef  = useRef(emps);
@@ -159,8 +160,9 @@ export default function App() {
     }
   },[]);
 
-  useEffect(()=>{
+useEffect(()=>{
     if(!ready || !scriptUrl || scriptUrl === "TU_URL_DE_GOOGLE_AQUI") return;
+    if (isFirstRender.current) { isFirstRender.current = false; return; } // EL FRENO DE MANO
     setSyncState("pending");
     clearTimeout(syncTimer.current);
     syncTimer.current = setTimeout(()=>
@@ -303,8 +305,8 @@ function RequestsView({emps,vacs,setVacs}){
   const fil=filter==="todos"?vacs:vacs.filter(v=>v.status===filter);
   const ST={aprobado:{bg:"#e8f5ee",c:"#4a9e6e",l:"Aprobado"},pendiente:{bg:"#fef5e7",c:"#c09020",l:"Pendiente"},rechazado:{bg:"#fde8e8",c:"#c05050",l:"Rechazado"}};
   return (
-    <div style={{display:"grid",gridTemplateColumns:"320px 1fr",gap:24,alignItems:"start"}}>
-      <div style={CS}>
+    <div style={{display:"flex",flexWrap:"wrap",gap:24,alignItems:"start"}}>
+      <div style={{...CS, flex:"1 1 280px"}}>
         <ST2>Nueva Solicitud</ST2>
         <Lb>Empleado *</Lb>
         <select value={form.employeeId} onChange={e=>setF(f=>({...f,employeeId:e.target.value}))} style={IS}>
@@ -319,7 +321,7 @@ function RequestsView({emps,vacs,setVacs}){
         {err&&<div style={{color:P.danger,fontSize:12,marginBottom:8}}>{err}</div>}
         <button onClick={submit} style={PB}>Agregar Solicitud</button>
       </div>
-      <div>
+      <div style={{flex:"99 1 400px"}}>
         <div style={{display:"flex",gap:8,marginBottom:18,flexWrap:"wrap"}}>
           {["todos","aprobado","pendiente","rechazado"].map(s=><button key={s} onClick={()=>setFl(s)} style={{border:`1px solid ${filter===s?P.accent:P.border}`,background:filter===s?P.accent:"transparent",color:filter===s?"#fff":P.textMid,borderRadius:20,padding:"5px 16px",fontSize:12,fontFamily:"'Bebas Neue',sans-serif",letterSpacing:1,cursor:"pointer"}}>{s.toUpperCase()}</button>)}
         </div>
@@ -404,8 +406,8 @@ function ConflictsView({emps,confs,setConfs,alerts}){
   const tog=id=>setSel(s=>s.includes(id)?s.filter(x=>x!==id):[...s,id]);
   const add=()=>{if(sel.length<2){setErr("Seleccioná al menos 2 empleados.");return;}setConfs(c=>[...c,{id:uid(),employeeIds:[...sel]}]);setSel([]);setErr("");};
   return (
-    <div style={{display:"grid",gridTemplateColumns:"320px 1fr",gap:24,alignItems:"start"}}>
-      <div style={CS}>
+    <div style={{display:"flex",flexWrap:"wrap",gap:24,alignItems:"start"}}>
+      <div style={{...CS, flex:"1 1 280px"}}>
         <ST2>Nueva Regla</ST2>
         <p style={{fontSize:13,color:P.textMid,marginBottom:14,lineHeight:1.5}}>Empleados que <strong>no pueden</strong> coincidir en vacaciones:</p>
         <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:14}}>
@@ -416,7 +418,7 @@ function ConflictsView({emps,confs,setConfs,alerts}){
         {err&&<div style={{color:P.danger,fontSize:12,marginBottom:8}}>{err}</div>}
         <button onClick={add} style={PB}>Agregar Regla</button>
       </div>
-      <div>
+      <div style={{flex:"99 1 400px"}}>
         <ST2>Reglas activas</ST2>
         {confs.length===0&&<Emp txt="No hay reglas definidas."/>}
         {confs.map(r=>{
