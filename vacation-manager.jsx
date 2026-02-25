@@ -84,7 +84,7 @@ export default function App() {
   const [alerts,setAlerts] = useState([]);
   const [ready,setReady]   = useState(false);
 
-  const [scriptUrl, setScriptUrl] = useState("https://script.google.com/macros/s/AKfycbwiiMBmfDywaeFRKYwJSWjftGLueMDX6bsReSRxqE5qw4JRdK-rVttOMQP0zEdO0WjYXg/exec");
+  const [scriptUrl, setScriptUrl] = useState("https://script.google.com/macros/s/AKfycbxkBQXD8UEnvEQFnxgILz1p3FkC9YdgH971nuxKw_3CT_pA5HNoxOjMGy8XeuQzeX-f1Q/exec");
   
   const [syncState, setSyncState] = useState("idle");
   const [lastSync,  setLastSync]  = useState("");
