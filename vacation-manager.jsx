@@ -359,8 +359,8 @@ function EmployeesView({emps,setEmps,vacs}){
     setF({name:"",maxDays:30,color:ECOLS[emps.length%ECOLS.length]});setErr("");
   };
   return (
-    <div style={{display:"grid",gridTemplateColumns:"300px 1fr",gap:24,alignItems:"start"}}>
-      <div style={CS}>
+    <div style={{display:"flex",flexWrap:"wrap",gap:24,alignItems:"start"}}>
+      <div style={{...CS, flex:"1 1 280px"}}>
         <ST2>Nuevo Empleado</ST2>
         <Lb>Nombre *</Lb><input value={form.name} onChange={e=>setF(f=>({...f,name:e.target.value}))} style={IS} placeholder="Nombre completo"/>
         <Lb>Días máx./año</Lb><input type="number" value={form.maxDays} onChange={e=>setF(f=>({...f,maxDays:e.target.value}))} style={IS} min={1} max={60}/>
@@ -371,7 +371,7 @@ function EmployeesView({emps,setEmps,vacs}){
         {err&&<div style={{color:P.danger,fontSize:12,marginBottom:8}}>{err}</div>}
         <button onClick={add} style={PB}>Agregar Empleado</button>
       </div>
-      <div>
+      <div style={{flex:"99 1 400px"}}>
         {emps.length===0&&<Emp txt="No hay empleados aún."/>}
         {emps.map(e=>{
           const yr=new Date().getFullYear();
