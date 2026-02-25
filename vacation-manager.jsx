@@ -1,12 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
-/* ── Fonts ── */
 const _fl = document.createElement("link");
 _fl.rel = "stylesheet";
 _fl.href = "https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700&display=swap";
 document.head.appendChild(_fl);
 
-// ─── Palette ──────────────────────────────────────────────────────────────────
 const P = {
   bg:"#f4f0eb", surface:"#fffcf8", surfaceAlt:"#f9f5ef",
   border:"#e8e0d4", text:"#3d3530", textMid:"#7a6e65", textSoft:"#b0a49a",
@@ -25,7 +23,6 @@ function overlap(s1,e1,s2,e2){ return s1<=e2&&s2<=e1; }
 const ld = async(k,fb)=>{ try{const r=await window.storage.get(k);return r?JSON.parse(r.value):fb;}catch{return fb;} };
 const sd = async(k,v) =>{ try{await window.storage.set(k,JSON.stringify(v));}catch{} };
 
-// ─── Build payload for Google Sheet ──────────────────────────────────────────
 function buildPayload(emps, vacs, confs) {
   const yr  = new Date().getFullYear();
   const now = new Date().toLocaleString("es-AR");
@@ -71,17 +68,14 @@ function buildPayload(emps, vacs, confs) {
   return { resumen, vacaciones, empleados, conflictos };
 }
 
-// ─── Send to Apps Script ──────────────────────────────────────────────────────
 async function syncToSheet(scriptUrl, emps, vacs, confs) {
   const payload  = buildPayload(emps, vacs, confs);
+  payload.rawState = { emps, vacs, confs };
   const formData = new FormData();
   formData.append("data", JSON.stringify(payload));
-
-  // no-cors: browser doesn't read response but data IS sent and processed
   await fetch(scriptUrl, { method:"POST", mode:"no-cors", body: formData });
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
 export default function App() {
   const [tab,setTab]       = useState("calendar");
   const [emps,setEmps]     = useState([]);
@@ -90,13 +84,12 @@ export default function App() {
   const [alerts,setAlerts] = useState([]);
   const [ready,setReady]   = useState(false);
 
-  // ── Sync state ────────────────────────────────────────────────────────────
-  const [scriptUrl, setScriptUrl] = useState("https://script.google.com/macros/s/https://script.google.com/macros/s/AKfycbwiiMBmfDywaeFRKYwJSWjftGLueMDX6bsReSRxqE5qw4JRdK-rVttOMQP0zEdO0WjYXg/exec");
-  const [syncState, setSyncState] = useState("idle");   // idle|pending|syncing|ok|error
-  const [lastSync,  setLastSync]  = useState(()=>localStorage.getItem("vcm_lastSync")||"");
+  const [scriptUrl, setScriptUrl] = useState("https://script.google.com/macros/s/AKfycbwiiMBmfDywaeFRKYwJSWjftGLueMDX6bsReSRxqE5qw4JRdK-rVttOMQP0zEdO0WjYXg/exec");
+  
+  const [syncState, setSyncState] = useState("idle");
+  const [lastSync,  setLastSync]  = useState("");
   const syncTimer = useRef(null);
 
-  // keep refs so debounce closure always has fresh values
   const urlRef   = useRef(scriptUrl);
   const empsRef  = useRef(emps);
   const vacsRef  = useRef(vacs);
@@ -106,11 +99,27 @@ export default function App() {
   useEffect(()=>{ vacsRef.current=vacs; },[vacs]);
   useEffect(()=>{ confsRef.current=confs; },[confs]);
 
-  // ── Load data ─────────────────────────────────────────────────────────────
   useEffect(()=>{
     (async()=>{
-      const [e,v,c]=await Promise.all([ld("vcm_e",[]),ld("vcm_v",[]),ld("vcm_c",[])]);
-      setEmps(e); setVacs(v); setConfs(c); setReady(true);
+      let loadedFromCloud = false;
+      if (scriptUrl && scriptUrl !== "TU_URL_DE_GOOGLE_AQUI") {
+        try {
+          const res = await fetch(scriptUrl);
+          const json = await res.json();
+          if (json.ok && json.data) {
+            setEmps(json.data.emps || []);
+            setVacs(json.data.vacs || []);
+            setConfs(json.data.confs || []);
+            loadedFromCloud = true;
+          }
+        } catch(e) { }
+      }
+      
+      if (!loadedFromCloud) {
+        const [e,v,c]=await Promise.all([ld("vcm_e",[]),ld("vcm_v",[]),ld("vcm_c",[])]);
+        setEmps(e); setVacs(v); setConfs(c);
+      }
+      setReady(true);
     })();
   },[]);
 
@@ -118,7 +127,6 @@ export default function App() {
   useEffect(()=>{ if(ready) sd("vcm_v",vacs); },[vacs,ready]);
   useEffect(()=>{ if(ready) sd("vcm_c",confs); },[confs,ready]);
 
-  // ── Alerts ────────────────────────────────────────────────────────────────
   useEffect(()=>{
     const a=[];
     confs.forEach(r=>{
@@ -137,24 +145,22 @@ export default function App() {
     setAlerts(a);
   },[vacs,confs,emps]);
 
-  // ── Core sync function ────────────────────────────────────────────────────
   const doSync = useCallback(async(e,v,c)=>{
     const url = urlRef.current;
-    if(!url) return;
+    if(!url || url === "TU_URL_DE_GOOGLE_AQUI") return;
     setSyncState("syncing");
     try {
       await syncToSheet(url, e, v, c);
       const ts = new Date().toLocaleString("es-AR");
-      setLastSync(ts); localStorage.setItem("vcm_lastSync",ts);
+      setLastSync(ts);
       setSyncState("ok");
     } catch(err) {
       setSyncState("error");
     }
   },[]);
 
-  // ── Auto-sync: debounce 2 s after any data change ─────────────────────────
   useEffect(()=>{
-    if(!ready || !scriptUrl) return;
+    if(!ready || !scriptUrl || scriptUrl === "TU_URL_DE_GOOGLE_AQUI") return;
     setSyncState("pending");
     clearTimeout(syncTimer.current);
     syncTimer.current = setTimeout(()=>
@@ -163,13 +169,11 @@ export default function App() {
     return ()=> clearTimeout(syncTimer.current);
   },[emps,vacs,confs,ready,scriptUrl]);
 
-  const saveScriptUrl = v => { setScriptUrl(v); localStorage.setItem("vcm_scriptUrl",v); };
-
-  if(!ready) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:P.bg,color:P.textMid,fontFamily:"Outfit,sans-serif"}}>Cargando…</div>;
+  if(!ready) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:P.bg,color:P.textMid,fontFamily:"Outfit,sans-serif"}}>Cargando Base de Datos…</div>;
 
   return (
     <div style={{minHeight:"100vh",background:P.bg,fontFamily:"Outfit,sans-serif",color:P.text}}>
-      <Header alerts={alerts} tab={tab} setTab={setTab} syncState={syncState} lastSync={lastSync} hasUrl={!!scriptUrl}/>
+      <Header alerts={alerts} tab={tab} setTab={setTab} syncState={syncState} lastSync={lastSync} hasUrl={scriptUrl && scriptUrl !== "TU_URL_DE_GOOGLE_AQUI"}/>
       <main style={{maxWidth:1120,margin:"0 auto",padding:"28px 20px"}}>
         {alerts.length>0&&tab!=="conflicts"&&<AlertBanner alerts={alerts} setTab={setTab}/>}
         {tab==="calendar"  && <CalendarView  emps={emps} vacs={vacs}/>}
@@ -177,35 +181,25 @@ export default function App() {
         {tab==="employees" && <EmployeesView emps={emps} setEmps={setEmps} vacs={vacs}/>}
         {tab==="conflicts" && <ConflictsView emps={emps} confs={confs} setConfs={setConfs} alerts={alerts}/>}
         {tab==="stats"     && <StatsView     emps={emps} vacs={vacs}/>}
-        {tab==="backup"    && (
-          <BackupView
-            emps={emps} vacs={vacs} confs={confs}
-            scriptUrl={scriptUrl} setScriptUrl={saveScriptUrl}
-            syncState={syncState} lastSync={lastSync}
-            onManualSync={()=>doSync(emps,vacs,confs)}
-          />
-        )}
       </main>
     </div>
   );
 }
 
-// ─── Header ───────────────────────────────────────────────────────────────────
 function Header({alerts,tab,setTab,syncState,lastSync,hasUrl}){
   const TABS=[
     {id:"calendar", icon:"📅",label:"CALENDARIO"},
     {id:"requests", icon:"✉️",label:"SOLICITUDES"},
     {id:"employees",icon:"👤",label:"EMPLEADOS"},
     {id:"conflicts",icon:"⚡",label:"REGLAS",badge:alerts.length},
-    {id:"stats",    icon:"📊",label:"ESTADÍSTICAS"},
-    {id:"backup",   icon:"💾",label:"BACKUP"},
+    {id:"stats",    icon:"📊",label:"ESTADÍSTICAS"}
   ];
   const dot={
     idle:    {bg:"#cbd5e1",label:hasUrl?"Listo":"Sin configurar"},
-    pending: {bg:P.warn,   label:"Guardando…"},
+    pending: {bg:P.warn,   label:"Guardando en la nube…"},
     syncing: {bg:P.accent, label:"Sincronizando…"},
-    ok:      {bg:P.success,label:"Drive ✓"},
-    error:   {bg:P.danger, label:"Error"},
+    ok:      {bg:P.success,label:"Base de Datos ✓"},
+    error:   {bg:P.danger, label:"Error de red"},
   }[syncState]||{bg:"#cbd5e1",label:""};
 
   return (
@@ -217,7 +211,7 @@ function Header({alerts,tab,setTab,syncState,lastSync,hasUrl}){
             <div style={{background:`linear-gradient(135deg,${P.accent},#c87b5a)`,borderRadius:10,width:36,height:36,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🌴</div>
             <div>
               <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:24,letterSpacing:2,color:P.text,lineHeight:1}}>VACACIONES <span style={{color:P.accent}}>MANAGER</span></div>
-              <div style={{fontSize:10,color:P.textSoft,letterSpacing:1}}>GESTIÓN DE VACACIONES DE EMPLEADOS</div>
+              <div style={{fontSize:10,color:P.textSoft,letterSpacing:1}}>SISTEMA CENTRALIZADO</div>
             </div>
           </div>
           <div title={syncState==="ok"?`Último sync: ${lastSync}`:""} style={{display:"flex",alignItems:"center",gap:7,background:P.surfaceAlt,border:`1px solid ${P.border}`,borderRadius:20,padding:"5px 12px",fontSize:12,color:P.textMid}}>
@@ -254,7 +248,6 @@ function AlertBanner({alerts,setTab}){
   );
 }
 
-// ─── Calendar ─────────────────────────────────────────────────────────────────
 function CalendarView({emps,vacs}){
   const today=new Date();
   const [yr,setYr]=useState(today.getFullYear());
@@ -293,7 +286,6 @@ function CalendarView({emps,vacs}){
   );
 }
 
-// ─── Requests ─────────────────────────────────────────────────────────────────
 function RequestsView({emps,vacs,setVacs}){
   const [form,setF]=useState({employeeId:"",startDate:"",endDate:"",notes:""});
   const [filter,setFl]=useState("todos");
@@ -358,7 +350,6 @@ function RequestsView({emps,vacs,setVacs}){
   );
 }
 
-// ─── Employees ────────────────────────────────────────────────────────────────
 function EmployeesView({emps,setEmps,vacs}){
   const [form,setF]=useState({name:"",maxDays:30,color:ECOLS[0]});
   const [err,setErr]=useState("");
@@ -408,7 +399,6 @@ function EmployeesView({emps,setEmps,vacs}){
   );
 }
 
-// ─── Conflicts ────────────────────────────────────────────────────────────────
 function ConflictsView({emps,confs,setConfs,alerts}){
   const [sel,setSel]=useState([]);const [err,setErr]=useState("");
   const tog=id=>setSel(s=>s.includes(id)?s.filter(x=>x!==id):[...s,id]);
@@ -450,7 +440,6 @@ function ConflictsView({emps,confs,setConfs,alerts}){
   );
 }
 
-// ─── Stats ────────────────────────────────────────────────────────────────────
 function StatsView({emps,vacs}){
   const years=[...new Set(vacs.map(v=>v.startDate?.slice(0,4)))].sort().reverse();
   const [yr,setYr]=useState(String(new Date().getFullYear()));
@@ -496,145 +485,11 @@ function StatsView({emps,vacs}){
   );
 }
 
-// ─── Backup View ──────────────────────────────────────────────────────────────
-function BackupView({emps,vacs,confs,scriptUrl,setScriptUrl,syncState,lastSync,onManualSync}){
-  const isConfigured = !!scriptUrl;
-  const [localUrl, setLocalUrl] = useState(scriptUrl);
-
-  const saveUrl = () => {
-    const trimmed = localUrl.trim();
-    if(!trimmed){ alert("Ingresá la URL del script primero."); return; }
-    setScriptUrl(trimmed);
-  };
-
-  const statusMap = {
-    idle:    {icon:"⚪",color:P.textSoft,  bg:"#f9f5ef",text:isConfigured?"Listo para sincronizar.":"Pegá la URL del script para activar el backup automático."},
-    pending: {icon:"🟡",color:P.warn,     bg:"#fef9ee",text:"Cambio detectado — actualizando en instantes…"},
-    syncing: {icon:"🔄",color:P.accent,   bg:"#fdf5ee",text:"Escribiendo datos en Google Sheets…"},
-    ok:      {icon:"✅",color:P.success,  bg:"#edfaf3",text:`Planilla actualizada. Último sync: ${lastSync}`},
-    error:   {icon:"❌",color:P.danger,   bg:"#fde8e8",text:"Error al sincronizar. Verificá que el script esté bien desplegado."},
-  }[syncState]||{icon:"⚪",color:P.textSoft,bg:"#f9f5ef",text:""};
-
-  const STEPS = [
-    {n:"1",title:"Abrí tu planilla de Google",body:<>Abrí esta planilla: <a href="https://docs.google.com/spreadsheets/d/1HfWk8vxAwbaaKdLESvwQF2aLu4GevPHOWPolEh5Rt8I/edit" target="_blank" rel="noreferrer" style={{color:P.accent,fontWeight:600}}>vacaciones-manager (tu Drive)</a></>},
-    {n:"2",title:'Abrí el editor de Apps Script',body:<>En el menú de la planilla: <strong>Extensiones → Apps Script</strong>. Borrá el código que aparece y pegá el contenido del archivo <code style={{background:"#eee",padding:"1px 5px",borderRadius:3}}>apps-script.js</code> que descargaste.</>},
-    {n:"3",title:"Guardá y desplegá",body:<>Click en 💾 Guardar. Luego: <strong>Implementar → Nueva implementación → Aplicación web</strong>. <br/>· Ejecutar como: <strong>Yo</strong><br/>· Quién tiene acceso: <strong>Cualquier persona</strong><br/>→ Click en <strong>Implementar</strong> → autorizá → copiá la URL.</>},
-    {n:"4",title:"Pegá la URL aquí abajo",body:"La URL empieza con https://script.google.com/macros/s/..."},
-  ];
-
-  return (
-    <div>
-      <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:26,letterSpacing:2,marginBottom:6}}>
-        BACKUP AUTOMÁTICO — <span style={{color:P.accent}}>GOOGLE SHEETS</span>
-      </div>
-      <div style={{fontSize:13,color:P.textMid,marginBottom:24}}>
-        Completamente gratuito · Sin Google Cloud · Sin tarjeta de crédito
-      </div>
-
-      {/* Status banner */}
-      <div style={{background:statusMap.bg,border:`1px solid ${statusMap.color}44`,borderRadius:10,padding:"14px 18px",marginBottom:24,display:"flex",alignItems:"center",gap:14}}>
-        <div style={{fontSize:24}}>{statusMap.icon}</div>
-        <div style={{flex:1}}>
-          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:1,color:statusMap.color,marginBottom:2}}>
-            {isConfigured ? {idle:"LISTO",pending:"PENDIENTE",syncing:"SINCRONIZANDO",ok:"SINCRONIZADO",error:"ERROR"}[syncState] : "SIN CONFIGURAR"}
-          </div>
-          <div style={{fontSize:13,color:P.textMid}}>{statusMap.text}</div>
-        </div>
-        {isConfigured&&<button onClick={onManualSync} style={{background:"transparent",color:P.accent,border:`1px solid ${P.accent}`,borderRadius:8,padding:"7px 16px",cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"'Bebas Neue',sans-serif",letterSpacing:1,whiteSpace:"nowrap"}}>
-          🔄 Sync manual
-        </button>}
-      </div>
-
-      <div style={{display:"grid",gridTemplateColumns:"1fr 380px",gap:24,alignItems:"start"}}>
-
-        {/* Steps */}
-        <div style={CS}>
-          <ST2>Configuración (solo una vez)</ST2>
-          <div style={{display:"flex",flexDirection:"column",gap:14}}>
-            {STEPS.map(s=>(
-              <div key={s.n} style={{display:"flex",gap:14,alignItems:"flex-start",padding:"12px 14px",background:P.surfaceAlt,borderRadius:10}}>
-                <div style={{width:30,height:30,borderRadius:"50%",background:P.accent,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Bebas Neue',sans-serif",fontSize:16,flexShrink:0}}>{s.n}</div>
-                <div style={{flex:1}}>
-                  <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:1,color:P.text,marginBottom:4}}>{s.title.toUpperCase()}</div>
-                  <div style={{fontSize:13,color:P.textMid,lineHeight:1.7}}>{s.body}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* URL input */}
-          <div style={{marginTop:18,padding:"16px",background:P.surfaceAlt,borderRadius:10,border:`1px solid ${isConfigured?P.success:P.border}`}}>
-            <Lb>URL de tu Apps Script</Lb>
-            <input
-              value={localUrl}
-              onChange={e=>setLocalUrl(e.target.value)}
-              style={{...IS,fontFamily:"monospace",fontSize:11}}
-              placeholder="https://script.google.com/macros/s/xxxxx/exec"
-            />
-            <div style={{display:"flex",gap:8}}>
-              <button onClick={saveUrl} style={{...PB,flex:1}}>
-                {isConfigured?"✓ URL guardada — actualizar":"Activar sync automático"}
-              </button>
-              {isConfigured&&<button onClick={()=>{setScriptUrl("");setLocalUrl("");}} style={{background:"transparent",color:P.textSoft,border:`1px solid ${P.border}`,borderRadius:8,padding:"11px 14px",cursor:"pointer",fontSize:12,fontFamily:"'Bebas Neue',sans-serif",letterSpacing:1}}>Limpiar</button>}
-            </div>
-          </div>
-        </div>
-
-        {/* Info panel */}
-        <div style={{display:"flex",flexDirection:"column",gap:16}}>
-          {/* Data summary */}
-          <div style={CS}>
-            <ST2>Datos a sincronizar</ST2>
-            <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {[
-                {icon:"✉️",l:"Vacaciones",  v:vacs.length},
-                {icon:"👤",l:"Empleados",   v:emps.length},
-                {icon:"⚡",l:"Reglas",      v:confs.length},
-              ].map(s=>(
-                <div key={s.l} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:P.surfaceAlt,borderRadius:8}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:P.textMid}}><span>{s.icon}</span>{s.l}</div>
-                  <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,color:P.accent}}>{s.v}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Sheet structure */}
-          <div style={CS}>
-            <ST2>Pestañas en tu Sheet</ST2>
-            {[
-              {tab:"📋 Resumen",   desc:"Última actualización y totales"},
-              {tab:"✉️ Vacaciones",desc:"Solicitudes con empleado, fechas y estado"},
-              {tab:"👤 Empleados", desc:"Días usados, máximos y restantes"},
-              {tab:"⚡ Conflictos",desc:"Reglas de no-coincidencia"},
-            ].map(r=>(
-              <div key={r.tab} style={{display:"flex",gap:10,alignItems:"center",padding:"7px 10px",background:P.surfaceAlt,borderRadius:7,marginBottom:6}}>
-                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:12,letterSpacing:1,color:P.accent,minWidth:130,flexShrink:0}}>{r.tab}</div>
-                <div style={{fontSize:12,color:P.textMid}}>{r.desc}</div>
-              </div>
-            ))}
-            <div style={{marginTop:10,fontSize:11,color:P.textSoft,textAlign:"center",lineHeight:1.5}}>
-              La planilla se actualiza automáticamente cada vez que<br/>agregás, editás o eliminás datos en la app.
-            </div>
-          </div>
-
-          {/* Open sheet */}
-          <a href="https://docs.google.com/spreadsheets/d/1HfWk8vxAwbaaKdLESvwQF2aLu4GevPHOWPolEh5Rt8I/edit" target="_blank" rel="noreferrer" style={{display:"block",textAlign:"center",background:P.surfaceAlt,border:`1px solid ${P.border}`,borderRadius:10,padding:"12px",color:P.textMid,textDecoration:"none",fontSize:13,fontWeight:600}}>
-            📋 Abrir tu planilla en Google Drive →
-          </a>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Micro components ─────────────────────────────────────────────────────────
 const ST2 = ({children}) => <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,letterSpacing:2,color:P.text,marginBottom:14}}>{children}</div>;
 const Lb  = ({children}) => <div style={{fontSize:11,fontWeight:600,color:P.textSoft,letterSpacing:1,marginBottom:4,textTransform:"uppercase"}}>{children}</div>;
 const Emp = ({txt})      => <div style={{textAlign:"center",padding:"48px 20px",color:P.textSoft,fontSize:14,background:P.surface,borderRadius:12,border:`1px dashed ${P.border}`}}>{txt}</div>;
 const AB  = ({c,f,children}) => <button onClick={f} style={{background:c+"18",color:c,border:`1px solid ${c}44`,borderRadius:5,padding:"4px 8px",cursor:"pointer",fontSize:12}}>{children}</button>;
 
-// ─── Shared styles ────────────────────────────────────────────────────────────
 const CS = {background:P.surface,border:`1px solid ${P.border}`,borderRadius:12,padding:18,boxShadow:`0 2px 12px ${P.shadow}`};
 const IS = {width:"100%",background:P.surfaceAlt,border:`1px solid ${P.border}`,borderRadius:8,color:P.text,padding:"9px 12px",fontSize:13,marginBottom:12,boxSizing:"border-box",outline:"none",fontFamily:"Outfit,sans-serif"};
 const PB = {width:"100%",background:P.accent,color:"#fff",border:"none",borderRadius:8,padding:"11px",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"'Bebas Neue',sans-serif",letterSpacing:1.5};
